@@ -1,9 +1,12 @@
+import Foundation  // For URL
 import UIKit
 import AVFoundation
 
 /// AudioRecorder: A class that handles continuous voice detection and recording
 @MainActor
 final class AudioRecorder: NSObject, @unchecked Sendable {
+    static let shared = AudioRecorder()
+    
     // MARK: - Properties
     private let audioEngine = AVAudioEngine()
     private var audioRecorder: AVAudioRecorder?
@@ -47,11 +50,28 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     }
     
     // MARK: - Initialization
-    init(storageManager: AudioStorageManaging) {
-        self.storageManager = storageManager
+    override init() {
+        print("AudioRecorder: Creating shared instance")
+        self.storageManager = StorageManager()
         super.init()
+        
+        print("AudioRecorder: Setting up state observation")
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFridayStateChange),
+            name: .fridayStateChanged,
+            object: nil
+        )
+        print("AudioRecorder: Observer setup complete")
+        
         setupAudioSession()
         setupNotifications()
+        
+        // Check initial state
+        Task { @MainActor in
+            await updateVoiceDetection()
+        }
+        print("AudioRecorder: Initialization complete")
     }
     
     // MARK: - Audio Session Setup
@@ -113,10 +133,8 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     
     // MARK: - Voice Detection
     func startVoiceDetection() async throws {
-        try await checkMicrophonePermission()
-        
         guard !isVoiceDetectionActive else { return }
-        guard !isShuttingDown else { return }
+        try await checkMicrophonePermission()
         
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -144,7 +162,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             print("Voice detection started")
         } catch {
             isVoiceDetectionActive = false
-            print("Failed to start audio engine: \(error.localizedDescription)")
+            print("Failed to start audio engine: \(error)")
             throw AudioRecorderError.audioSessionSetupFailed
         }
     }
@@ -263,7 +281,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             
             // Start a new recording task
             recordingTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(maxRecordingDuration * 1_000_000_000))
+                try? await Task.sleep(nanoseconds: UInt64(self!.maxRecordingDuration * 1_000_000_000))
                 if !Task.isCancelled {
                     await self?.stopRecording()
                 }
@@ -295,32 +313,50 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
       }
     
     // MARK: - Cleanup
-    func cleanup() async {
-        guard !isShuttingDown else { return }
-        isShuttingDown = true
+    func pauseVoiceDetection() async {
+        guard isVoiceDetectionActive else { return }
         
-        silenceCheckTask?.cancel()
-        silenceCheckTask = nil
+        print("Pausing voice detection...")
         
-        print("Starting cleanup...")
+        // Stop current recording if any
         await stopRecording()
         
+        // Pause voice detection
         if isVoiceDetectionActive {
-            audioEngine.stop()
+            audioEngine.pause()  // Use pause instead of stop
             audioEngine.inputNode.removeTap(onBus: 0)
             isVoiceDetectionActive = false
+            print("Voice detection paused")
         }
-        
-        try? await audioSession.setActive(false)
-        print("Cleanup completed")
     }
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         recordingTask?.cancel()
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         audioRecorder?.stop()
         print("AudioRecorder deinitialized")
-        NotificationCenter.default.removeObserver(self)
+    }
+    
+    @objc private func handleFridayStateChange(_ notification: Notification) {
+        print("AudioRecorder: State change detected")
+        Task { @MainActor in
+            await updateVoiceDetection()
+        }
+    }
+    
+    private func updateVoiceDetection() async {
+        if FridayState.shared.voiceDetectorActive {
+            print("AudioRecorder: Activating voice detection")
+            do {
+                try await startVoiceDetection()
+            } catch {
+                print("Failed to start voice detection: \(error)")
+            }
+        } else {
+            print("AudioRecorder: Pausing voice detection")
+            await pauseVoiceDetection()  // Use pause instead of cleanup
+        }
     }
 }
