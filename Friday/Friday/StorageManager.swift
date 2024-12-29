@@ -29,15 +29,13 @@ enum StorageError: LocalizedError {
 
 actor StorageManager: AudioStorageManaging {
     // MARK: - Properties
-    private let speechRecognizer: SFSpeechRecognizer? = {
-        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        if recognizer != nil {
-            print("Speech recognizer initialized successfully")
-        } else {
-            print("Error: Speech recognizer could not be initialized")
-        }
-        return recognizer
-    }()
+    private let speechRecognizers: [SFSpeechRecognizer?] = [
+        SFSpeechRecognizer(locale: Locale(identifier: "en-US")),  // Try English first
+        SFSpeechRecognizer(locale: Locale(identifier: "zh-CN")),  // Then Chinese
+        // Add more languages here in the future, they will be tried in order
+        // SFSpeechRecognizer(locale: Locale(identifier: "ja-JP")),  // Example: Japanese
+        // SFSpeechRecognizer(locale: Locale(identifier: "ko-KR")),  // Example: Korean
+    ]
     
     private nonisolated lazy var baseDirectory: URL = {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
@@ -58,6 +56,15 @@ actor StorageManager: AudioStorageManaging {
     
     // MARK: - Initialization
     init() {
+        // Print available recognizers in order
+        print("\n=== Speech Recognizers (in order) ===")
+        for (index, recognizer) in speechRecognizers.enumerated() {
+            if let locale = recognizer?.locale {
+                print("\(index + 1). \(locale.identifier)")
+            }
+        }
+        print("================================\n")
+        
         setupDirectories()
     }
     
@@ -90,41 +97,53 @@ actor StorageManager: AudioStorageManaging {
         do {
             try await checkSpeechPermission()
             
-            guard let speechRecognizer = speechRecognizer else {
-                print("Speech recognizer not available")
-                return
-            }
-            
-            let request = SFSpeechURLRecognitionRequest(url: url)
-            // Explicitly disable local recognition
-            request.requiresOnDeviceRecognition = false
-            request.shouldReportPartialResults = false
-            print("Using cloud recognition")
-            
-            let transcription = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SFSpeechRecognitionResult, Error>) in
-                _ = speechRecognizer.recognitionTask(with: request) { result, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    
-                    guard let result = result, result.isFinal else { return }
-                    continuation.resume(returning: result)
+            // Try each recognizer in order
+            for recognizer in speechRecognizers {
+                guard let speechRecognizer = recognizer else { continue }
+                
+                do {
+                    let transcription = try await transcribeWith(recognizer: speechRecognizer, url: url)
+                    print("Successfully transcribed using \(speechRecognizer.locale.identifier)")
+                    await saveTranscription(transcription, fileName: fileName)
+                    return
+                } catch {
+                    print("Failed with \(speechRecognizer.locale.identifier), trying next...")
+                    // Don't print "Skipping transcription" here, just continue to next recognizer
+                    continue
                 }
             }
             
-            let dateString = fileName.replacingOccurrences(of: "recording-", with: "")
-            
-            let transcriptFileName = "transcribed-\(dateString)"
-            let transcriptURL = transcriptDirectory.appendingPathComponent("\(transcriptFileName).txt")
-            
-            let transcriptionText = transcription.bestTranscription.formattedString
-            try transcriptionText.write(to: transcriptURL, atomically: true, encoding: .utf8)
-            print("Transcription saved: \(transcriptFileName)")
+            // Only print skip message if all recognizers failed
+            print("Skipping transcription - all recognizers failed")
             
         } catch {
-            print("Transcription failed: \(error.localizedDescription)")
+            print("Transcription permission error: \(error.localizedDescription)")
         }
+    }
+    
+    private func transcribeWith(recognizer: SFSpeechRecognizer, url: URL) async throws -> SFSpeechRecognitionResult {
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.shouldReportPartialResults = false
+        request.requiresOnDeviceRecognition = false  // Force cloud only
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            _ = recognizer.recognitionTask(with: request) { result, error in
+                if error != nil {
+                    // Don't print skip message here, let the caller handle it
+                    continuation.resume(throwing: NSError(domain: "Speech", code: -1))
+                    return
+                }
+                
+                guard let result = result, result.isFinal else { return }
+                continuation.resume(returning: result)
+            }
+        }
+    }
+    
+    private func saveTranscription(_ transcription: SFSpeechRecognitionResult, fileName: String) async {
+        let transcriptFileName = "transcribed-\(fileName)"
+        let transcriptURL = transcriptDirectory.appendingPathComponent("\(transcriptFileName).txt")
+        try? transcription.bestTranscription.formattedString.write(to: transcriptURL, atomically: true, encoding: .utf8)
     }
     
     // MARK: - File Retrieval

@@ -15,6 +15,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     private var isRecording = false {
         didSet {
             print("Recording state changed to: \(isRecording)")
+            FridayState.shared.voiceRecorderActive = isRecording
         }
     }
     private var lastRecordingTime: Date?
