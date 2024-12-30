@@ -107,9 +107,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     @objc private func handleFridayStateChange(_ notification: Notification) {
-        if let state: String = notification.userInfo?["state"] as? String,
-           state == "voiceRecorder" {
-            updateGifAnimation(isRecording: FridayState.shared.voiceRecorderActive)
+        if let state: String = notification.userInfo?["state"] as? String {
+            if state == "voiceRecorder" {
+                updateGifAnimation(isRecording: FridayState.shared.voiceRecorderActive)
+            } else if state == "voiceDetector" {
+                // Update button state when voice detector changes
+                Task { @MainActor in
+                    isAwake = FridayState.shared.voiceDetectorActive
+                    awakeButton?.setTitle(isAwake ? "Awake" : "Asleep", for: .normal)
+                }
+            }
         }
     }
     

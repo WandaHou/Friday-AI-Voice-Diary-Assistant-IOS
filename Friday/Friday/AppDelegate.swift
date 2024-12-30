@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import Speech
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -11,20 +12,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let _ = AudioRecorder.shared
         print("AppDelegate: AudioRecorder shared instance accessed")
         
+        // Setup audio session and request permissions
         setupAudioSession()
+        
         return true
-    }
-
-    // Support for scenes
-    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
-        return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
     }
 
     private func setupAudioSession() {
         Task { @MainActor in
             do {
                 let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+                try audioSession.setCategory(.playAndRecord,
+                                           mode: .default,
+                                           options: [.mixWithOthers,         // Allow mixing with other apps
+                                                   .allowBluetooth,          // Support Bluetooth devices
+                                                   .defaultToSpeaker,        // Use speaker for playback
+                                                   .allowBluetoothA2DP])     // Better Bluetooth support
                 try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
                 
                 // Request microphone permission
@@ -42,10 +45,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     }
                 }
                 
-                // If microphone granted, request speech recognition
+                // If microphone granted, request other permissions
                 if micPermissionGranted {
+                    // Request speech recognition permission
                     SFSpeechRecognizer.requestAuthorization { status in
                         print("Speech recognition permission: \(status == .authorized ? "granted" : "denied")")
+                        
+                        // Request notification permission after speech recognition
+                        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+                            if granted {
+                                print("AppDelegate: Notification permission granted")
+                            } else if let error = error {
+                                print("AppDelegate: Failed to request notification permission: \(error.localizedDescription)")
+                            }
+                        }
                     }
                 }
                 

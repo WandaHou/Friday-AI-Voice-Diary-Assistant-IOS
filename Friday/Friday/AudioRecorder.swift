@@ -1,6 +1,7 @@
 import Foundation  // For URL
 import UIKit
 import AVFoundation
+import UserNotifications
 
 /// AudioRecorder: A class that handles continuous voice detection and recording
 @MainActor
@@ -11,7 +12,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     private let audioEngine = AVAudioEngine()
     private var audioRecorder: AVAudioRecorder?
     private let audioSession = AVAudioSession.sharedInstance()
-    private let threshold: Float = -30.0
+    private let threshold: Float = -25.0
     private var isRecording = false {
         didSet {
             print("AudioRecorder: Recording state changed to: \(isRecording)")
@@ -61,8 +62,16 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             name: .fridayStateChanged,
             object: nil
         )
-        print("AudioRecorder: Observer setup complete")
         
+        // Add audio session interruption observer
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        
+        print("AudioRecorder: Observer setup complete")
         setupAudioSession()
         
         // Check initial state
@@ -75,7 +84,12 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     // MARK: - Audio Session Setup
     private func setupAudioSession() {
         do {
-            try audioSession.setCategory(.record, mode: .default, options: [.mixWithOthers])
+            try audioSession.setCategory(.playAndRecord,
+                                       mode: .default,
+                                       options: [.mixWithOthers,
+                                               .allowBluetooth,
+                                               .defaultToSpeaker,
+                                               .allowBluetoothA2DP])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("AudioRecorder: Failed to setup audio session: \(error.localizedDescription)")
@@ -129,6 +143,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         } catch {
             isVoiceDetectionActive = false
             print("AudioRecorder: Failed to start audio engine: \(error)")
+            FridayState.shared.voiceDetectorActive = false
             throw AudioRecorderError.audioSessionSetupFailed
         }
     }
@@ -219,7 +234,12 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         recordingTask = nil
         
         do {
-            try audioSession.setCategory(.record, mode: .default)
+            try audioSession.setCategory(.playAndRecord,
+                                       mode: .default,
+                                       options: [.mixWithOthers,
+                                               .allowBluetooth,
+                                               .defaultToSpeaker,
+                                               .allowBluetoothA2DP])
             try audioSession.setActive(true)
             
             // Use AudioRecordings directory
@@ -255,6 +275,35 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         } catch {
             isRecording = false
             print("AudioRecorder: Recording setup failed: \(error.localizedDescription)")
+            
+            // Add this: If recording fails, we should stop voice detection entirely
+            if error._domain == "NSOSStatusErrorDomain" {  // This indicates system-level audio issues
+                print("AudioRecorder: System audio conflict detected - stopping voice detection")
+                Task { @MainActor in
+                    await stopVoiceDetection()  // This will update FridayState
+                    
+                    // Notify user after 5 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                        let content = UNMutableNotificationContent()
+                        content.title = "Voice Detection Stopped"
+                        content.body = "Hey, you wanna come back to turn me on?"
+                        content.sound = .default
+                        
+                        let request = UNNotificationRequest(
+                            identifier: "voiceDetectionStopped",
+                            content: content,
+                            trigger: nil
+                        )
+                        
+                        UNUserNotificationCenter.current().add(request) { error in
+                            if let error = error {
+                                print("AudioRecorder: Failed to schedule notification: \(error)")
+                            }
+                        }
+                    }
+                }
+            }
+            
             throw AudioRecorderError.recordingSetupFailed
         }
     }
@@ -276,21 +325,17 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
       }
     
     // MARK: - Cleanup
-    func pauseVoiceDetection() async {
+    func stopVoiceDetection() async {
         guard isVoiceDetectionActive else { return }
         
-        print("AudioRecorder: Pausing voice detection...")
-        
-        // Stop current recording if any
+        print("AudioRecorder: Stopping voice detection...")
         await stopRecording()
         
-        // Pause voice detection
-        if isVoiceDetectionActive {
-            audioEngine.pause()  // Use pause instead of stop
-            audioEngine.inputNode.removeTap(onBus: 0)
-            isVoiceDetectionActive = false
-            print("AudioRecorder: Voice detection paused")
-        }
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        isVoiceDetectionActive = false
+        FridayState.shared.voiceDetectorActive = false
+        print("AudioRecorder: Voice detection stopped")
     }
     
     deinit {
@@ -299,6 +344,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         audioRecorder?.stop()
+        FridayState.shared.voiceDetectorActive = false
         print("AudioRecorder: AudioRecorder deinitialized")
     }
     
@@ -316,10 +362,46 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
                 try await startVoiceDetection()
             } catch {
                 print("AudioRecorder: Failed to start voice detection: \(error)")
+                FridayState.shared.voiceDetectorActive = false
             }
         } else {
-            print("AudioRecorder: Pausing voice detection")
-            await pauseVoiceDetection()  // Use pause instead of cleanup
+            print("AudioRecorder: Stopping voice detection")
+            await stopVoiceDetection()
+        }
+    }
+    
+    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        if type == .began {
+            print("AudioRecorder: Audio session interrupted")
+            Task { @MainActor in
+                await stopVoiceDetection()  // This will update FridayState
+                
+                // Schedule notification after 5 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    let content = UNMutableNotificationContent()
+                    content.title = "Voice Detection Stopped"
+                    content.body = "Hey, you wanna come back to turn me on?"
+                    content.sound = .default
+                    
+                    let request = UNNotificationRequest(
+                        identifier: "voiceDetectionStopped",
+                        content: content,
+                        trigger: nil
+                    )
+                    
+                    UNUserNotificationCenter.current().add(request) { error in
+                        if let error = error {
+                            print("AudioRecorder: Failed to schedule notification: \(error)")
+                        }
+                    }
+                }
+            }
         }
     }
 }
