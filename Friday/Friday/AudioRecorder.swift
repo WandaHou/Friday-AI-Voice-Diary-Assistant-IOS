@@ -86,10 +86,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         do {
             try audioSession.setCategory(.playAndRecord,
                                        mode: .default,
-                                       options: [.mixWithOthers,
-                                               .allowBluetooth,
-                                               .defaultToSpeaker,
-                                               .allowBluetoothA2DP])
+                                       options: [.mixWithOthers])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("AudioRecorder: Failed to setup audio session: \(error.localizedDescription)")
@@ -236,10 +233,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         do {
             try audioSession.setCategory(.playAndRecord,
                                        mode: .default,
-                                       options: [.mixWithOthers,
-                                               .allowBluetooth,
-                                               .defaultToSpeaker,
-                                               .allowBluetoothA2DP])
+                                       options: [.mixWithOthers])
             try audioSession.setActive(true)
             
             // Use AudioRecordings directory

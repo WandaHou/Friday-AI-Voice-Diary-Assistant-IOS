@@ -24,10 +24,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 let audioSession = AVAudioSession.sharedInstance()
                 try audioSession.setCategory(.playAndRecord,
                                            mode: .default,
-                                           options: [.mixWithOthers,         // Allow mixing with other apps
-                                                   .allowBluetooth,          // Support Bluetooth devices
-                                                   .defaultToSpeaker,        // Use speaker for playback
-                                                   .allowBluetoothA2DP])     // Better Bluetooth support
+                                           options: [.mixWithOthers])
                 try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
                 
                 // Request microphone permission
