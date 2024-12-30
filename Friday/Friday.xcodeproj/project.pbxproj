@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7375442E2D21015100547D96 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7375442D2D21015100547D96 /* UIKit.framework */; };
+		737544342D2128E500547D96 /* phonograph.gif in Resources */ = {isa = PBXBuildFile; fileRef = 737544332D2128E500547D96 /* phonograph.gif */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		73A873342D1FD2EB00BC1E80 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +29,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		7375442D2D21015100547D96 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		737544332D2128E500547D96 /* phonograph.gif */ = {isa = PBXFileReference; lastKnownFileType = image.gif; path = phonograph.gif; sourceTree = "<group>"; };
 		73A873232D1FD2E800BC1E80 /* Friday.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Friday.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		73A873332D1FD2EB00BC1E80 /* FridayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FridayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73A8733D2D1FD2EB00BC1E80 /* FridayUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FridayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -65,6 +72,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7375442E2D21015100547D96 /* UIKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,12 +93,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		7375442C2D21015000547D96 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7375442D2D21015100547D96 /* UIKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		73A8731A2D1FD2E700BC1E80 = {
 			isa = PBXGroup;
 			children = (
+				737544332D2128E500547D96 /* phonograph.gif */,
 				73A873252D1FD2E800BC1E80 /* Friday */,
 				73A873362D1FD2EB00BC1E80 /* FridayTests */,
 				73A873402D1FD2EB00BC1E80 /* FridayUITests */,
+				7375442C2D21015000547D96 /* Frameworks */,
 				73A873242D1FD2E800BC1E80 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -225,6 +243,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				737544342D2128E500547D96 /* phonograph.gif in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -416,11 +435,12 @@
 				INFOPLIST_FILE = Friday/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"We need access to your microphone to record audio\"";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "\"We need speech recognition to transcribe your recordings\"";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -449,11 +469,12 @@
 				INFOPLIST_FILE = Friday/Info.plist;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "\"We need access to your microphone to record audio\"";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "\"We need speech recognition to transcribe your recordings\"";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = "";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

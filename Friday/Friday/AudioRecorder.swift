@@ -14,7 +14,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     private let threshold: Float = -30.0
     private var isRecording = false {
         didSet {
-            print("Recording state changed to: \(isRecording)")
+            print("AudioRecorder: Recording state changed to: \(isRecording)")
             FridayState.shared.voiceRecorderActive = isRecording
         }
     }
@@ -23,7 +23,6 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     private var recordingTask: Task<Void, Never>?
     private var isVoiceDetectionActive = false
     private var isShuttingDown = false
-    private let storageManager: AudioStorageManaging
     private let silenceThreshold: TimeInterval = 5.0  // 5 seconds of silence
     private let maxRecordingDuration: TimeInterval = 2 * 3600.0  // hours * 3600 seconds
     private var lastVoiceDetectionTime: Date?
@@ -39,13 +38,13 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .recordingInProgress:
-                return "Recording is already in progress"
+                return "AudioRecorder: Recording is already in progress"
             case .audioSessionSetupFailed:
-                return "Failed to setup audio session"
+                return "AudioRecorder: Failed to setup audio session"
             case .recordingSetupFailed:
-                return "Failed to setup recording"
+                return "AudioRecorder: Failed to setup recording"
             case .microphonePermissionDenied:
-                return "Microphone permission is required"
+                return "AudioRecorder: Microphone permission is required"
             }
         }
     }
@@ -53,7 +52,6 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     // MARK: - Initialization
     override init() {
         print("AudioRecorder: Creating shared instance")
-        self.storageManager = StorageManager()
         super.init()
         
         print("AudioRecorder: Setting up state observation")
@@ -66,7 +64,6 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         print("AudioRecorder: Observer setup complete")
         
         setupAudioSession()
-        setupNotifications()
         
         // Check initial state
         Task { @MainActor in
@@ -80,42 +77,8 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         do {
             try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            
-            // Add this line for background operation
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("Failed to setup audio session: \(error.localizedDescription)")
-        }
-    }
-    
-    // Add handling for audio interruptions
-    private func setupNotifications() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAudioSessionInterruption),
-            name: AVAudioSession.interruptionNotification,
-            object: nil)
-    }
-    
-    @objc private func handleAudioSessionInterruption(notification: Notification) async {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
-        
-        switch type {
-        case .began:
-            Task { await stopRecording() }
-        case .ended:
-            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt,
-                  AVAudioSession.InterruptionOptions(rawValue: optionsValue).contains(.shouldResume) else {
-                return
-            }
-            // Optionally restart voice detection
-            try? await startVoiceDetection()
-        @unknown default:
-            break
+            print("AudioRecorder: Failed to setup audio session: \(error.localizedDescription)")
         }
     }
     
@@ -150,7 +113,9 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
                 guard let self = self, !self.isShuttingDown else { return }
                 let level = self.calculateDecibels(buffer: buffer)
                 if level > self.threshold && !self.isRecording && self.canStartNewRecording() {
-                    print("Voice activity detected! Level: \(level) dB")
+                    print("================================================")
+                    print("AudioRecorder: Voice activity detected at \(Date().formatted(date: .omitted, time: .standard))! Level: \(level) dB")
+                    //print("================================================")
                     await self.handleVoiceDetection()
                 }
             }
@@ -160,10 +125,10 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             audioEngine.prepare()
             try audioEngine.start()
             isVoiceDetectionActive = true
-            print("Voice detection started")
+            print("AudioRecorder: Voice detection started")
         } catch {
             isVoiceDetectionActive = false
-            print("Failed to start audio engine: \(error)")
+            print("AudioRecorder: Failed to start audio engine: \(error)")
             throw AudioRecorderError.audioSessionSetupFailed
         }
     }
@@ -184,7 +149,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             // Start monitoring for silence
             startSilenceMonitoring()
         } catch {
-            print("Failed to start recording: \(error.localizedDescription)")
+            print("AudioRecorder: Failed to start recording: \(error.localizedDescription)")
         }
     }
     
@@ -278,7 +243,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             }
             
             isRecording = true
-            print("Started recording to: \(audioFilename.lastPathComponent)")
+            print("AudioRecorder: Started recording to: \(audioFilename.lastPathComponent)")
             
             // Start a new recording task
             recordingTask = Task { [weak self] in
@@ -289,7 +254,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             }
         } catch {
             isRecording = false
-            print("Recording setup failed: \(error.localizedDescription)")
+            print("AudioRecorder: Recording setup failed: \(error.localizedDescription)")
             throw AudioRecorderError.recordingSetupFailed
         }
     }
@@ -301,12 +266,9 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
           
           if let recorder = audioRecorder {
               recorder.stop()
-              print("Recording stopped: \(recorder.url.lastPathComponent)")
+              print("AudioRecorder: Recording saved successfully at \(recorder.url.lastPathComponent)")
+              print("================================================")
               
-              // Notify StorageManager to transcribe
-              Task {
-                  try? await storageManager.transcribeAudioFile(at: recorder.url)
-              }
           }
           
           audioRecorder = nil
@@ -317,7 +279,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     func pauseVoiceDetection() async {
         guard isVoiceDetectionActive else { return }
         
-        print("Pausing voice detection...")
+        print("AudioRecorder: Pausing voice detection...")
         
         // Stop current recording if any
         await stopRecording()
@@ -327,7 +289,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             audioEngine.pause()  // Use pause instead of stop
             audioEngine.inputNode.removeTap(onBus: 0)
             isVoiceDetectionActive = false
-            print("Voice detection paused")
+            print("AudioRecorder: Voice detection paused")
         }
     }
     
@@ -337,7 +299,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         audioRecorder?.stop()
-        print("AudioRecorder deinitialized")
+        print("AudioRecorder: AudioRecorder deinitialized")
     }
     
     @objc private func handleFridayStateChange(_ notification: Notification) {
@@ -353,7 +315,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
             do {
                 try await startVoiceDetection()
             } catch {
-                print("Failed to start voice detection: \(error)")
+                print("AudioRecorder: Failed to start voice detection: \(error)")
             }
         } else {
             print("AudioRecorder: Pausing voice detection")

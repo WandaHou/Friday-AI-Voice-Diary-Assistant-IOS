@@ -17,6 +17,19 @@ class FridayState {
         }
     }
     
+    var voiceRecorderActive: Bool = false {
+        didSet {
+            print("FridayState: Voice recorder state changed to \(voiceRecorderActive)")
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: .fridayStateChanged,
+                    object: nil,
+                    userInfo: ["state": "voiceRecorder"]
+                )
+            }
+        }
+    }
+    
     // Future states will go here:
     // var screenDetectorActive: Bool = false { didSet { ... } }
     // var cameraDetectorActive: Bool = false { didSet { ... } }

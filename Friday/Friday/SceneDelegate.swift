@@ -1,11 +1,13 @@
 import UIKit
-
+import AVFoundation
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var isAwake = false
     private var gifImageView: UIImageView?  // Keep reference to control animation
     private var patLabel: UILabel?  // Add this for the temporary message
+    private var awakeButton: UIButton?  // Add reference to button
+    private var stateBeforeInterruption: Bool = false  // Add this to store previous state
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -33,6 +35,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         button.titleLabel?.font = .systemFont(ofSize: 18)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addTarget(self, action: #selector(toggleButtonTapped), for: .touchUpInside)
+        self.awakeButton = button  // Store reference
         
         // Create GIF Button instead of ImageView
         let gifButton = UIButton(type: .custom)
@@ -61,6 +64,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             self,
             selector: #selector(handleFridayStateChange),
             name: .fridayStateChanged,
+            object: nil
+        )
+        
+        // Add audio session interruption observer
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption),
+            name: AVAudioSession.interruptionNotification,
             object: nil
         )
         
@@ -139,21 +150,74 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Position above the GIF
         NSLayoutConstraint.activate([
             label.centerXAnchor.constraint(equalTo: gifButton.centerXAnchor),
-            label.bottomAnchor.constraint(equalTo: gifButton.topAnchor, constant: 20)
+            label.bottomAnchor.constraint(equalTo: gifButton.topAnchor, constant: 30)
         ])
         
         // Animate in and out
-        UIView.animate(withDuration: 0.1, animations: {
+        UIView.animate(withDuration: 0.3, animations: {
             label.alpha = 1
         }) { _ in
             // After appearing, wait and fade out
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                UIView.animate(withDuration: 0.2, animations: {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                UIView.animate(withDuration: 0.3, animations: {
                     label.alpha = 0
                 }) { _ in
                     label.removeFromSuperview()
                 }
             }
+        }
+    }
+    
+    // Add programmatic control method
+    func setVoiceDetectorState(_ active: Bool) {
+        Task { @MainActor in
+            // Update button and state
+            isAwake = active
+            awakeButton?.setTitle(active ? "Awake" : "Asleep", for: .normal)
+            FridayState.shared.voiceDetectorActive = active
+        }
+    }
+    
+    // Keep this for interruption handling
+    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            // Only act if currently awake
+            if isAwake {
+                print("Audio interruption began - auto clicking button to sleep")
+                stateBeforeInterruption = true  // Remember it was awake
+                setVoiceDetectorState(false)
+            }
+            
+        case .ended:
+            guard stateBeforeInterruption else { return }
+            
+            // Try to reclaim audio session before resuming
+            do {
+                print("Attempting to reclaim audio session...")
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+                try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+                
+                print("Successfully reclaimed audio session, resuming awake state")
+                setVoiceDetectorState(true)
+            } catch {
+                print("Failed to reclaim audio session: \(error.localizedDescription)")
+                // Maybe try again after a delay?
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second delay
+                    setVoiceDetectorState(true)  // Try one more time
+                }
+            }
+            
+        @unknown default:
+            break
         }
     }
 }
