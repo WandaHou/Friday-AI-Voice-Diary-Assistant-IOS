@@ -3,11 +3,10 @@ import AVFoundation
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
-    private var isAwake = false
+    private var isAwake: Bool = false
     private var gifImageView: UIImageView?  // Keep reference to control animation
     private var patLabel: UILabel?  // Add this for the temporary message
     private var awakeButton: UIButton?  // Add reference to button
-    private var stateBeforeInterruption: Bool = false  // Add this to store previous state
     
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -49,8 +48,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.gifImageView = gifImageView
         
         // Load GIF but start paused
-        if let gifPath = Bundle.main.path(forResource: "phonograph", ofType: "gif"),
-           let gifData = try? Data(contentsOf: URL(fileURLWithPath: gifPath)),
+        if let gifPath: String = Bundle.main.path(forResource: "phonograph", ofType: "gif"),
+           let gifData: Data = try? Data(contentsOf: URL(fileURLWithPath: gifPath)),
            let gifImage = UIImage.gifImageWithData(gifData) {
             gifImageView.image = gifImage
             gifImageView.layer.speed = 0  // Start paused
@@ -64,14 +63,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             self,
             selector: #selector(handleFridayStateChange),
             name: .fridayStateChanged,
-            object: nil
-        )
-        
-        // Add audio session interruption observer
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAudioSessionInterruption),
-            name: AVAudioSession.interruptionNotification,
             object: nil
         )
         
@@ -116,7 +107,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     @objc private func handleFridayStateChange(_ notification: Notification) {
-        if let state = notification.userInfo?["state"] as? String,
+        if let state: String = notification.userInfo?["state"] as? String,
            state == "voiceRecorder" {
             updateGifAnimation(isRecording: FridayState.shared.voiceRecorderActive)
         }
@@ -168,56 +159,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
     }
     
-    // Add programmatic control method
+    // Keep this for programmatic button control
     func setVoiceDetectorState(_ active: Bool) {
         Task { @MainActor in
             // Update button and state
             isAwake = active
             awakeButton?.setTitle(active ? "Awake" : "Asleep", for: .normal)
             FridayState.shared.voiceDetectorActive = active
-        }
-    }
-    
-    // Keep this for interruption handling
-    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
-        
-        switch type {
-        case .began:
-            // Only act if currently awake
-            if isAwake {
-                print("Audio interruption began - auto clicking button to sleep")
-                stateBeforeInterruption = true  // Remember it was awake
-                setVoiceDetectorState(false)
-            }
-            
-        case .ended:
-            guard stateBeforeInterruption else { return }
-            
-            // Try to reclaim audio session before resuming
-            do {
-                print("Attempting to reclaim audio session...")
-                let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
-                try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-                
-                print("Successfully reclaimed audio session, resuming awake state")
-                setVoiceDetectorState(true)
-            } catch {
-                print("Failed to reclaim audio session: \(error.localizedDescription)")
-                // Maybe try again after a delay?
-                Task {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second delay
-                    setVoiceDetectorState(true)  // Try one more time
-                }
-            }
-            
-        @unknown default:
-            break
         }
     }
 }

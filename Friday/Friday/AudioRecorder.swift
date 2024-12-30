@@ -75,7 +75,7 @@ final class AudioRecorder: NSObject, @unchecked Sendable {
     // MARK: - Audio Session Setup
     private func setupAudioSession() {
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+            try audioSession.setCategory(.record, mode: .default, options: [.mixWithOthers])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             print("AudioRecorder: Failed to setup audio session: \(error.localizedDescription)")

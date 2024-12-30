@@ -1,9 +1,9 @@
 import Foundation
+import AVFoundation
 
 class FridayState {
     static let shared = FridayState()
     
-    // States - all default to false
     var voiceDetectorActive: Bool = false {
         didSet {
             print("FridayState: Voice detector state changed to \(voiceDetectorActive)")
@@ -30,11 +30,9 @@ class FridayState {
         }
     }
     
-    // Future states will go here:
-    // var screenDetectorActive: Bool = false { didSet { ... } }
-    // var cameraDetectorActive: Bool = false { didSet { ... } }
-    
-    private init() {}
+    init() {
+        // No interruption handling needed
+    }
 }
 
 extension Notification.Name {
