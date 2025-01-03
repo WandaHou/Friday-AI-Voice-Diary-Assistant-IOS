@@ -24,7 +24,7 @@ actor WhisperService {
         for audioFile in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
             let transcript = try await transcribeAudio(file: audioFile)
             let timeRange = extractTimeRange(from: audioFile.lastPathComponent)
-            fullTranscript += "From \(timeRange.start) to \(timeRange.end): \(transcript)\n\n"
+            fullTranscript += "From \(timeRange.start) to \(timeRange.end):\n\(transcript)\n\n"
         }
         
         try await saveTranscript(fullTranscript)

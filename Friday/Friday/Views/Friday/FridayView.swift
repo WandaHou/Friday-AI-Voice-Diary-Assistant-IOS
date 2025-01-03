@@ -9,6 +9,7 @@ struct FridayView: View {
     @State private var isGifPlaying: Bool = false
     @State private var showPatMessage: Bool = false
     @State private var isTranscribing = false
+    @State private var isGeneratingDiary = false
     
     // MARK: - Main View
     var body: some View {
@@ -41,7 +42,7 @@ struct FridayView: View {
                 .padding(.bottom, 70)
             
             // Version Label
-            Text("Friday1.0")
+            Text("Friday0.1")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(.primary)
             
@@ -67,7 +68,7 @@ struct FridayView: View {
                 }
             }) {
                 HStack {
-                    Text("Transcribe Recordings")
+                    Text("Transcribe🎧")
                         .font(.system(size: 18, weight: .bold))
                     if isTranscribing {
                         ProgressView()
@@ -76,6 +77,25 @@ struct FridayView: View {
                 }
             }
             .disabled(isTranscribing)
+            
+            // Add Generate Diary Button
+            Button(action: {
+                isGeneratingDiary = true
+                Task {
+                    await generateDiary()
+                    isGeneratingDiary = false
+                }
+            }) {
+                HStack {
+                    Text("Generate Diary📝")
+                        .font(.system(size: 18, weight: .bold))
+                    if isGeneratingDiary {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    }
+                }
+            }
+            .disabled(isGeneratingDiary)
             
             Spacer()
         }
@@ -173,9 +193,28 @@ func transcribeRecordings() async {
     let audioPath = documentsPath.appendingPathComponent("AudioRecords")
     
     do {
-        let transcript = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
-        print("Transcription completed: \(transcript)")
+        _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
+        print("Transcription completed.")
     } catch {
-        print("Transcription failed: \(error)")
+        print("Transcription failed.")
     }
-} 
+}
+
+func generateDiary() async {
+    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+        return
+    }
+    
+    let transcriptsPath = documentsPath.appendingPathComponent("Transcripts")
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy_MM_dd"
+    let dateString = dateFormatter.string(from: Date())
+    let transcriptURL = transcriptsPath.appendingPathComponent("\(dateString).txt")
+    
+    do {
+        _ = try await DiaryService.shared.createDiary(from: transcriptURL)
+        print("Diary generated successfully")
+    } catch {
+        print("Failed to generate diary: \(error)")
+    }
+}
