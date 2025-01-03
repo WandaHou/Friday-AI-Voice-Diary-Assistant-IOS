@@ -177,12 +177,6 @@ struct LottieView: UIViewRepresentable {
             uiView.pause()
         }
     }
-    
-    static func dismantleUIView(_ uiView: LottieAnimationView, coordinator: ()) {
-        // Clear Lottie's cache when view is dismantled
-        LottieAnimationCache.shared?.clearCache()
-        uiView.stop()
-    }
 }
 
 // MARK: - Preview

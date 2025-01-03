@@ -3,9 +3,9 @@ import Foundation
 actor WhisperService {
     static let shared = WhisperService()
     private let apiKey: String
+    private let fileManager = FileManager.default
     
     private init() {
-        // Load API key from configuration
         guard let key = Bundle.main.infoDictionary?["OPENAI_API_KEY"] as? String else {
             fatalError("OpenAI API key not found")
         }
@@ -13,56 +13,51 @@ actor WhisperService {
     }
     
     func transcribeAudioFiles(in directory: URL) async throws -> String {
-        let fileManager = FileManager.default
-        let contents = try fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil
-        ).filter { $0.pathExtension == "wav" }
+        let contents = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "wav" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
         
-        // Return early if no WAV files found
-        guard !contents.isEmpty else {
-            return "No audio files to transcribe"
-        }
+        guard !contents.isEmpty else { return "No audio files to transcribe" }
         
         var fullTranscript = ""
         var lastFileDate: String?
         var failedDeletions: [String] = []
         
-        for audioFile in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            // Transcribe the audio file
+        for audioFile in contents {
             let transcript = try await transcribeAudio(file: audioFile)
             let timeRange = extractTimeRange(from: audioFile.lastPathComponent)
             fullTranscript += "From \(timeRange.start) to \(timeRange.end):\n\(transcript)\n\n"
-            
-            // Extract date from file before deleting
             lastFileDate = extractDate(from: audioFile.lastPathComponent)
             
-            // Delete the WAV file after successful transcription
-            do {
-                try fileManager.removeItem(at: audioFile)
-                print("Successfully deleted audio file: \(audioFile.lastPathComponent)")
-                
-                // Verify file is actually gone
-                if fileManager.fileExists(atPath: audioFile.path) {
-                    print("Warning: File still exists after deletion attempt: \(audioFile.lastPathComponent)")
-                    failedDeletions.append(audioFile.lastPathComponent)
-                }
-            } catch {
-                print("Error deleting audio file: \(audioFile.lastPathComponent), error: \(error)")
+            if !deleteAndVerify(file: audioFile) {
                 failedDeletions.append(audioFile.lastPathComponent)
             }
         }
         
+        await cleanupAllAudioStorage()
+        
         if !failedDeletions.isEmpty {
-            print("Warning: Failed to delete some audio files: \(failedDeletions)")
+            print("Warning: Failed to delete files: \(failedDeletions)")
         }
         
-        // Only save transcript if we processed files
         if !fullTranscript.isEmpty {
             try await saveTranscript(fullTranscript, date: lastFileDate ?? "unknown_date")
         }
         
         return fullTranscript
+    }
+    
+    private func deleteAndVerify(file: URL) -> Bool {
+        do {
+            try fileManager.removeItem(at: file)
+            if !fileManager.fileExists(atPath: file.path) {
+                print("Successfully deleted: \(file.lastPathComponent)")
+                return true
+            }
+        } catch {
+            print("Error deleting file: \(error)")
+        }
+        return false
     }
     
     private func transcribeAudio(file: URL) async throws -> String {
@@ -139,6 +134,34 @@ actor WhisperService {
             return (formattedStart, formattedEnd)
         }
         return ("unknown", "unknown")
+    }
+    
+    private func cleanupAllAudioStorage() async {
+        let fileManager = FileManager.default
+        let locations = [
+            fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+            fileManager.temporaryDirectory
+        ].compactMap { $0 }
+        
+        for location in locations {
+            do {
+                let contents = try fileManager.contentsOfDirectory(
+                    at: location,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles]
+                )
+                
+                for file in contents where file.pathExtension == "wav" {
+                    try? fileManager.removeItem(at: file)
+                    print("Cleaned up cached file at: \(file.path)")
+                }
+            } catch {
+                print("Error cleaning cache directory \(location.path): \(error)")
+            }
+        }
+        
+        // Clear URLSession cache
+        URLCache.shared.removeAllCachedResponses()
     }
 }
 

@@ -1,5 +1,4 @@
 import SwiftUI
-import Lottie
 import UIKit
 
 @main
@@ -59,10 +58,6 @@ struct FridayApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(fridayState)
-                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                    // Clear cache when app is terminated
-                    LottieAnimationCache.shared?.clearCache()
-                }
         }
     }
 }
