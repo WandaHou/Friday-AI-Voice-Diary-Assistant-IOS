@@ -100,9 +100,9 @@ struct AnimatedImageView: View {
         if level > threshold {
             let speed = (level - threshold) / (maxDB - threshold)
             let clampedSpeed = Double(speed.clamped(to: 0...1))
-            playbackSpeed = 0.2 + (clampedSpeed * 1.8)
+            playbackSpeed = 0.5 + (clampedSpeed * 1.5)
         } else {
-            playbackSpeed = 0.2
+            playbackSpeed = 0.5
         }
     }
 }
