@@ -21,6 +21,9 @@ struct FridayApp: App {
         // Add more directories as needed:
         // setupAppDirectory("Images")
         // setupAppDirectory("Videos")
+        
+        // Create test JSON file
+        // createTestJSONFile()
     }
     
     // MARK: - Directory Setup
@@ -57,6 +60,9 @@ struct FridayApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(fridayState)
+                .onAppear {
+                    createTestTextFile()  // Create a test text file
+                }
         }
     }
 }

@@ -17,7 +17,7 @@ struct FridayView: View {
             // Message space (always present but invisible)
             Text("Your cat is patted")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .opacity(showPatMessage ? 1 : 0)
                 .padding(.bottom, 70)
             
@@ -42,12 +42,12 @@ struct FridayView: View {
             // Version Label
             Text("Friday1.0")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             // "is" Label
             Text("is")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             // Awake/Asleep Button
             Button(action: {
@@ -100,9 +100,9 @@ struct AnimatedImageView: View {
         if level > threshold {
             let speed = (level - threshold) / (maxDB - threshold)
             let clampedSpeed = Double(speed.clamped(to: 0...1))
-            playbackSpeed = 0.4 + (clampedSpeed * 1.6)
+            playbackSpeed = 0.2 + (clampedSpeed * 1.8)
         } else {
-            playbackSpeed = 0.4
+            playbackSpeed = 0.2
         }
     }
 }

@@ -20,14 +20,18 @@ struct MainTabView: View {
                 }
                 .tag(1)
             
-            NavigationView {
-                CacheView()
+            if #available(iOS 16.0, *) {
+                NavigationStack {
+                    CacheView()
+                }
+                .tabItem {
+                    Image(systemName: "clock.arrow.circlepath")
+                    Text("Cache")
+                }
+                .tag(2)
+            } else {
+                // Fallback on earlier versions
             }
-            .tabItem {
-                Image(systemName: "clock.arrow.circlepath")
-                Text("Cache")
-            }
-            .tag(2)
             
             ProfileView()
                 .tabItem {
@@ -36,6 +40,7 @@ struct MainTabView: View {
                 }
                 .tag(3)
         }
+        .navigationViewStyle(.stack)
     }
 }
 
