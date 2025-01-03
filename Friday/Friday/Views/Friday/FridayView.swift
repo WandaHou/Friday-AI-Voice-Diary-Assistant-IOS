@@ -177,6 +177,12 @@ struct LottieView: UIViewRepresentable {
             uiView.pause()
         }
     }
+    
+    static func dismantleUIView(_ uiView: LottieAnimationView, coordinator: ()) {
+        // Clear Lottie's cache when view is dismantled
+        LottieAnimationCache.shared?.clearCache()
+        uiView.stop()
+    }
 }
 
 // MARK: - Preview
@@ -207,7 +213,7 @@ func generateDiary() async {
     
     let transcriptsPath = documentsPath.appendingPathComponent("Transcripts")
     let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy_MM_dd"
+    dateFormatter.dateFormat = "yyyy-MM-dd"
     let dateString = dateFormatter.string(from: Date())
     let transcriptURL = transcriptsPath.appendingPathComponent("\(dateString).txt")
     

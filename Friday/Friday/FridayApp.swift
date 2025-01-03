@@ -1,4 +1,5 @@
 import SwiftUI
+import Lottie
 import UIKit
 
 @main
@@ -22,8 +23,6 @@ struct FridayApp: App {
         // setupAppDirectory("Images")
         // setupAppDirectory("Videos")
         
-        // Create test JSON file
-        // createTestJSONFile()
     }
     
     // MARK: - Directory Setup
@@ -60,9 +59,10 @@ struct FridayApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(fridayState)
-//                .onAppear {
-//                    createTestTextFile()  // Create a test text file
-//                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
+                    // Clear cache when app is terminated
+                    LottieAnimationCache.shared?.clearCache()
+                }
         }
     }
 }

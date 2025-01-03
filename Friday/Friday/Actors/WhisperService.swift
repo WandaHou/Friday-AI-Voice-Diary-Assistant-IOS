@@ -19,15 +19,49 @@ actor WhisperService {
             includingPropertiesForKeys: nil
         ).filter { $0.pathExtension == "wav" }
         
+        // Return early if no WAV files found
+        guard !contents.isEmpty else {
+            return "No audio files to transcribe"
+        }
+        
         var fullTranscript = ""
+        var lastFileDate: String?
+        var failedDeletions: [String] = []
         
         for audioFile in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            // Transcribe the audio file
             let transcript = try await transcribeAudio(file: audioFile)
             let timeRange = extractTimeRange(from: audioFile.lastPathComponent)
             fullTranscript += "From \(timeRange.start) to \(timeRange.end):\n\(transcript)\n\n"
+            
+            // Extract date from file before deleting
+            lastFileDate = extractDate(from: audioFile.lastPathComponent)
+            
+            // Delete the WAV file after successful transcription
+            do {
+                try fileManager.removeItem(at: audioFile)
+                print("Successfully deleted audio file: \(audioFile.lastPathComponent)")
+                
+                // Verify file is actually gone
+                if fileManager.fileExists(atPath: audioFile.path) {
+                    print("Warning: File still exists after deletion attempt: \(audioFile.lastPathComponent)")
+                    failedDeletions.append(audioFile.lastPathComponent)
+                }
+            } catch {
+                print("Error deleting audio file: \(audioFile.lastPathComponent), error: \(error)")
+                failedDeletions.append(audioFile.lastPathComponent)
+            }
         }
         
-        try await saveTranscript(fullTranscript)
+        if !failedDeletions.isEmpty {
+            print("Warning: Failed to delete some audio files: \(failedDeletions)")
+        }
+        
+        // Only save transcript if we processed files
+        if !fullTranscript.isEmpty {
+            try await saveTranscript(fullTranscript, date: lastFileDate ?? "unknown_date")
+        }
+        
         return fullTranscript
     }
     
@@ -62,22 +96,33 @@ actor WhisperService {
         return response.text
     }
     
-    private func saveTranscript(_ text: String) async throws {
+    private func extractDate(from filename: String) -> String {
+        // Example filename format: "2024-03-21_14-30-45_to_14-35-20.wav"
+        // We only want "2024-03-21"
+        let components = filename.components(separatedBy: "_")
+        if components.count >= 1 {
+            // Take first component (year-month-day) and join them
+            return components[0]
+        }
+        return "unknown_date"
+    }
+    
+    private func saveTranscript(_ text: String, date: String) async throws {
         guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw TranscriptionError.saveFailed
         }
         
         let transcriptsPath = documentsPath.appendingPathComponent("Transcripts")
+        let transcriptURL = transcriptsPath.appendingPathComponent("\(date).txt")
         
-        // Format date for filename: YYYY_MM_DD
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy_MM_dd"
-        let dateString = dateFormatter.string(from: Date())
-        
-        let transcriptURL = transcriptsPath.appendingPathComponent("\(dateString).txt")
-        
-        // Always overwrite the file
-        try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        // If file exists, append to it instead of creating new
+        if FileManager.default.fileExists(atPath: transcriptURL.path) {
+            let existingContent = try String(contentsOf: transcriptURL, encoding: .utf8)
+            let updatedContent = existingContent + "\n\n" + text
+            try updatedContent.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        } else {
+            try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
+        }
     }
     
     private func extractTimeRange(from filename: String) -> (start: String, end: String) {

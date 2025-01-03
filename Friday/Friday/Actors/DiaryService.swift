@@ -21,9 +21,13 @@ actor DiaryService {
         let diary = try await generateDiary(from: prompt)
         
         // Save diary
-        try await saveDiary(diary)
-        
+        try await saveDiary(diary, date: extractDateFromURL(transcriptFile))
         return diary
+    }
+    
+    private func extractDateFromURL(_ url: URL) -> String {
+        // Get filename without extension (e.g., "2025-01-02")
+        return url.deletingPathExtension().lastPathComponent
     }
     
     private func generateDiary(from prompt: String) async throws -> String {
@@ -50,17 +54,13 @@ actor DiaryService {
         return response.choices.first?.message.content ?? "No diary generated"
     }
     
-    private func saveDiary(_ text: String) async throws {
+    private func saveDiary(_ text: String, date: String) async throws {
         guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw DiaryError.saveFailed
         }
         
         let diariesPath = documentsPath.appendingPathComponent("Diaries")
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy_MM_dd"
-        let dateString = dateFormatter.string(from: Date())
-        
-        let diaryURL = diariesPath.appendingPathComponent("\(dateString).txt")
+        let diaryURL = diariesPath.appendingPathComponent("\(date).txt")
         try text.write(to: diaryURL, atomically: true, encoding: .utf8)
     }
 }
@@ -80,4 +80,4 @@ struct ChatResponse: Codable {
 
 enum DiaryError: Error {
     case saveFailed
-} 
+}
