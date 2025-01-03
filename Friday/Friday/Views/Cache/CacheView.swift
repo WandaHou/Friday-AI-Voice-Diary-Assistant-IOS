@@ -271,20 +271,20 @@ class CacheViewModel: ObservableObject {
     }
 }
 
-func createTestTextFile() {
-    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-        print("Could not find documents directory")
-        return
-    }
-    
-    let content = "Hello world."
-    let diaryPath = documentsPath.appendingPathComponent("Diaries")
-    let testFile = diaryPath.appendingPathComponent("test.txt")
-    
-    do {
-        try content.write(to: testFile, atomically: true, encoding: .utf8)
-        print("Created test text file at: \(testFile.path)")
-    } catch {
-        print("Error creating test file: \(error)")
-    }
-}
+//func createTestTextFile() {
+//    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+//        print("Could not find documents directory")
+//        return
+//    }
+//    
+//    let content = "Hello world."
+//    let diaryPath = documentsPath.appendingPathComponent("Diaries")
+//    let testFile = diaryPath.appendingPathComponent("test.txt")
+//    
+//    do {
+//        try content.write(to: testFile, atomically: true, encoding: .utf8)
+//        print("Created test text file at: \(testFile.path)")
+//    } catch {
+//        print("Error creating test file: \(error)")
+//    }
+//}

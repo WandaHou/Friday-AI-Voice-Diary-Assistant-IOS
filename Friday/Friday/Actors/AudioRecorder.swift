@@ -123,13 +123,17 @@ actor AudioRecorder {
         guard !isRecording else { return }
         
         // Setup recording format
-        let format = audioEngine.inputNode.outputFormat(forBus: 0)
+        // let format = audioEngine.inputNode.outputFormat(forBus: 0)
         let recordingURL = try createNewRecordingURL()
         
+        // Update settings for WAV format
         let settings: [String: Any] = [
-            AVFormatIDKey: format.settings[AVFormatIDKey] ?? kAudioFormatLinearPCM,
-            AVSampleRateKey: format.sampleRate,
-            AVNumberOfChannelsKey: format.channelCount,
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVSampleRateKey: 44100.0,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
         
@@ -152,7 +156,7 @@ actor AudioRecorder {
         dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let startTimeString = dateFormatter.string(from: Date())
         
-        return audioRecordsPath.appendingPathComponent("\(startTimeString)_recording.m4a")
+        return audioRecordsPath.appendingPathComponent("\(startTimeString)_recording.wav")
     }
     
     private func checkSilence() {
@@ -170,7 +174,6 @@ actor AudioRecorder {
               let recorder = audioRecorder,
               let startTime = recordingStartTime else { return }
         
-        // Stop recording
         recorder.stop()
         
         // Format start time with full date
@@ -185,7 +188,7 @@ actor AudioRecorder {
         
         let oldURL = recorder.url
         let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(
-            "\(startTimeString)_to_\(endTimeString).m4a"
+            "\(startTimeString)_to_\(endTimeString).wav"  // Change to .wav
         )
         
         do {

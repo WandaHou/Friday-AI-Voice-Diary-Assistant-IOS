@@ -60,9 +60,9 @@ struct FridayApp: App {
         WindowGroup {
             MainTabView()
                 .environmentObject(fridayState)
-                .onAppear {
-                    createTestTextFile()  // Create a test text file
-                }
+//                .onAppear {
+//                    createTestTextFile()  // Create a test text file
+//                }
         }
     }
 }

@@ -8,6 +8,7 @@ struct FridayView: View {
     @State private var buttonTitle: String = "Asleep"
     @State private var isGifPlaying: Bool = false
     @State private var showPatMessage: Bool = false
+    @State private var isTranscribing = false
     
     // MARK: - Main View
     var body: some View {
@@ -56,6 +57,25 @@ struct FridayView: View {
                 Text(fridayState.voiceDetectorActive ? "Awake" : "Asleep")
                     .font(.system(size: 18, weight: .bold))
             }
+            
+            // Add Transcribe Button
+            Button(action: {
+                isTranscribing = true
+                Task {
+                    await transcribeRecordings()
+                    isTranscribing = false
+                }
+            }) {
+                HStack {
+                    Text("Transcribe Recordings")
+                        .font(.system(size: 18, weight: .bold))
+                    if isTranscribing {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                    }
+                }
+            }
+            .disabled(isTranscribing)
             
             Spacer()
         }
@@ -143,4 +163,19 @@ struct LottieView: UIViewRepresentable {
 #Preview {
     FridayView()
         .environmentObject(FridayState.shared)
+}
+
+func transcribeRecordings() async {
+    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+        return
+    }
+    
+    let audioPath = documentsPath.appendingPathComponent("AudioRecords")
+    
+    do {
+        let transcript = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
+        print("Transcription completed: \(transcript)")
+    } catch {
+        print("Transcription failed: \(error)")
+    }
 } 
