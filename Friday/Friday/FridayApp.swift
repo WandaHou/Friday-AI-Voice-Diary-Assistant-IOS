@@ -21,7 +21,6 @@ struct FridayApp: App {
         // Add more directories as needed:
         // setupAppDirectory("Images")
         // setupAppDirectory("Videos")
-        
     }
     
     // MARK: - Directory Setup

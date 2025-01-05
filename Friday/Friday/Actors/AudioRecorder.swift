@@ -13,7 +13,7 @@ actor AudioRecorder {
     private var audioRecorder: AVAudioRecorder?
     private var isListening = false
     private var isRecording = false
-    let threshold: Float = -30.0  // Voice detection threshold
+    let threshold: Float = -40.0  // Voice detection threshold
     private let silenceThreshold: TimeInterval = 5.0
     private var lastVoiceDetectionTime: Date?
     private var silenceCheckTask: Task<Void, Never>?
@@ -188,12 +188,32 @@ actor AudioRecorder {
         
         let oldURL = recorder.url
         let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(
-            "\(startTimeString)_to_\(endTimeString).wav"  // Change to .wav
+            "\(startTimeString)_to_\(endTimeString).wav"
         )
         
         do {
             try FileManager.default.moveItem(at: oldURL, to: newURL)
             print("AudioRecorder: Saved recording to \(newURL.lastPathComponent)")
+            
+            // Schedule transcription after a delay
+            Task {
+                do {
+                    if #available(iOS 16.0, *) {
+                        try await Task.sleep(for: .seconds(silenceThreshold))
+                    } else {
+                        // Fallback on earlier versions
+                    }
+                    print("Starting transcription for newly saved recording...")
+                    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                        print("Failed to get documents path")
+                        return
+                    }
+                    let audioPath = documentsPath.appendingPathComponent("AudioRecords")
+                    _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
+                } catch {
+                    print("Transcription failed: \(error)")
+                }
+            }
         } catch {
             print("AudioRecorder: Failed to rename recording: \(error)")
         }

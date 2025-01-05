@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import Foundation
 import Lottie
+import Combine
 
 struct FridayView: View {
     @EnvironmentObject private var fridayState: FridayState
@@ -101,6 +102,21 @@ struct FridayView: View {
         }
         .padding()
     }
+    
+    func transcribeRecordings() async {
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let audioPath = documentsPath.appendingPathComponent("AudioRecords")
+        
+        do {
+            _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
+            print("Transcription completed.")
+        } catch {
+            print("Transcription failed.")
+        }
+    }
 }
 
 // MARK: - Animated Image View
@@ -183,21 +199,6 @@ struct LottieView: UIViewRepresentable {
 #Preview {
     FridayView()
         .environmentObject(FridayState.shared)
-}
-
-func transcribeRecordings() async {
-    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-        return
-    }
-    
-    let audioPath = documentsPath.appendingPathComponent("AudioRecords")
-    
-    do {
-        _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
-        print("Transcription completed.")
-    } catch {
-        print("Transcription failed.")
-    }
 }
 
 func generateDiary() async {
