@@ -212,10 +212,14 @@ func generateDiary() async {
     let dateString = dateFormatter.string(from: Date())
     let transcriptURL = transcriptsPath.appendingPathComponent("\(dateString).txt")
     
-    do {
-        _ = try await DiaryService.shared.createDiary(from: transcriptURL)
-        print("Diary generated successfully")
-    } catch {
-        print("Failed to generate diary: \(error)")
+    // Load saved notes for custom prompt
+    if let data = UserDefaults.standard.data(forKey: "SystemPromptNotes"),
+       let savedNotes = try? JSONDecoder().decode([Note].self, from: data) {
+        do {
+            _ = try await DiaryService.shared.createDiary(from: transcriptURL, using: savedNotes)
+            print("Diary generated successfully with custom prompt")
+        } catch {
+            print("Failed to generate diary: \(error)")
+        }
     }
 }

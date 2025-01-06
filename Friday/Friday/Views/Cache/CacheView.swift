@@ -28,6 +28,7 @@ struct CacheItem: Identifiable {
     let name: String
     let type: CacheItemType
     let size: String?
+    let date: Date?
     
     var iconName: String {
         switch type {
@@ -223,7 +224,8 @@ class CacheViewModel: ObservableObject {
                     url: folderURL,
                     name: folder.name,
                     type: .folder,
-                    size: nil
+                    size: nil,
+                    date: nil
                 )
             }
             return
@@ -237,11 +239,14 @@ class CacheViewModel: ObservableObject {
         }
         
         do {
-            let contents = try fileManager.contentsOfDirectory(at: currentPath, includingPropertiesForKeys: [.isDirectoryKey])
+            let contents = try fileManager.contentsOfDirectory(
+                at: currentPath,
+                includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]
+            )
+            
             items = contents.map { url in
                 let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
                 let type: CacheItemType = isDirectory ? .folder : .getFileType(for: url)
-                
                 let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
                     .map { formatFileSize($0) }
                 
@@ -249,10 +254,18 @@ class CacheViewModel: ObservableObject {
                     url: url,
                     name: url.lastPathComponent,
                     type: type,
-                    size: size
+                    size: size,
+                    date: try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
                 )
             }
-            .sorted { $0.type.sortPriority < $1.type.sortPriority }
+            .sorted { item1, item2 in
+                // First sort by type
+                if item1.type.sortPriority != item2.type.sortPriority {
+                    return item1.type.sortPriority < item2.type.sortPriority
+                }
+                // Then sort by date (most recent first)
+                return (item1.date ?? .distantPast) > (item2.date ?? .distantPast)
+            }
         } catch {
             print("Error reading directory: \(error)")
             items = []
@@ -276,11 +289,11 @@ class CacheViewModel: ObservableObject {
 //        print("Could not find documents directory")
 //        return
 //    }
-//    
+//
 //    let content = "Hello world."
 //    let diaryPath = documentsPath.appendingPathComponent("Diaries")
 //    let testFile = diaryPath.appendingPathComponent("test.txt")
-//    
+//
 //    do {
 //        try content.write(to: testFile, atomically: true, encoding: .utf8)
 //        print("Created test text file at: \(testFile.path)")

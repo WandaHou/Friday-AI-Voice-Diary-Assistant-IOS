@@ -13,7 +13,7 @@ actor AudioRecorder {
     private var audioRecorder: AVAudioRecorder?
     private var isListening = false
     private var isRecording = false
-    let threshold: Float = -40.0  // Voice detection threshold
+    let threshold: Float = -25.0  // Voice detection threshold
     private let silenceThreshold: TimeInterval = 5.0
     private var lastVoiceDetectionTime: Date?
     private var silenceCheckTask: Task<Void, Never>?
@@ -170,52 +170,33 @@ actor AudioRecorder {
     }
     
     private func stopRecording() async {
-        guard isRecording,
-              let recorder = audioRecorder,
+        guard let recorder = audioRecorder,
               let startTime = recordingStartTime else { return }
         
         recorder.stop()
         
-        // Format start time with full date
-        let startFormatter = DateFormatter()
-        startFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let startTimeString = startFormatter.string(from: startTime)
-        
-        // Format end time with only time
-        let endFormatter = DateFormatter()
-        endFormatter.dateFormat = "HH-mm-ss"
-        let endTimeString = endFormatter.string(from: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
         
         let oldURL = recorder.url
-        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(
-            "\(startTimeString)_to_\(endTimeString).wav"
-        )
+        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent("\(timestamp).wav")
         
         do {
             try FileManager.default.moveItem(at: oldURL, to: newURL)
             print("AudioRecorder: Saved recording to \(newURL.lastPathComponent)")
             
-            // Schedule transcription after a delay
+            // Transcribe this single file immediately
             Task {
                 do {
-                    if #available(iOS 16.0, *) {
-                        try await Task.sleep(for: .seconds(silenceThreshold))
-                    } else {
-                        // Fallback on earlier versions
-                    }
                     print("Starting transcription for newly saved recording...")
-                    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                        print("Failed to get documents path")
-                        return
-                    }
-                    let audioPath = documentsPath.appendingPathComponent("AudioRecords")
-                    _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
+                    _ = try await WhisperService.shared.transcribeSingleFile(newURL)
                 } catch {
                     print("Transcription failed: \(error)")
                 }
             }
         } catch {
-            print("AudioRecorder: Failed to rename recording: \(error)")
+            print("AudioRecorder: Failed to save recording: \(error)")
         }
         
         // Cleanup
@@ -227,6 +208,20 @@ actor AudioRecorder {
     // Error handling
     enum RecordingError: Error {
         case fileCreationFailed
+    }
+    
+    private func getRecordingURL() -> URL? {
+        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let timestamp = formatter.string(from: Date())
+        
+        let audioDirectory = documentsPath.appendingPathComponent("AudioRecords")
+        let filename = "\(timestamp).wav"
+        return audioDirectory.appendingPathComponent(filename)
     }
 }
 

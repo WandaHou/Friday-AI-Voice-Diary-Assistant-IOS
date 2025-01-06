@@ -21,23 +21,14 @@ actor WhisperService {
         
         var fullTranscript = ""
         var lastFileDate: String?
-        var failedDeletions: [String] = []
         
         for audioFile in contents {
             let transcript = try await transcribeAudio(file: audioFile)
             let timeRange = extractTimeRange(from: audioFile.lastPathComponent)
-            fullTranscript += "From \(timeRange.start) to \(timeRange.end):\n\(transcript)\n\n"
+            fullTranscript += "At \(timeRange.start):\n\(transcript)\n\n"
             lastFileDate = extractDate(from: audioFile.lastPathComponent)
             
-            if !deleteAndVerify(file: audioFile) {
-                failedDeletions.append(audioFile.lastPathComponent)
-            }
-        }
-        
-        await cleanupAllAudioStorage()
-        
-        if !failedDeletions.isEmpty {
-            print("Warning: Failed to delete files: \(failedDeletions)")
+            try? fileManager.removeItem(at: audioFile)
         }
         
         if !fullTranscript.isEmpty {
@@ -45,6 +36,18 @@ actor WhisperService {
         }
         
         return fullTranscript
+    }
+    
+    func transcribeSingleFile(_ file: URL) async throws -> String {
+        let transcript = try await transcribeAudio(file: file)
+        let timeRange = extractTimeRange(from: file.lastPathComponent)
+        let formattedTranscript = "At \(timeRange.start):\n\(transcript)\n\n"
+        
+        try? fileManager.removeItem(at: file)
+        
+        try await saveTranscript(formattedTranscript, date: extractDate(from: file.lastPathComponent))
+        
+        return formattedTranscript
     }
     
     private func deleteAndVerify(file: URL) -> Bool {
@@ -121,19 +124,20 @@ actor WhisperService {
     }
     
     private func extractTimeRange(from filename: String) -> (start: String, end: String) {
-        // Example filename format: "2024-03-21_14-30-45_to_14-35-20.wav"
-        let components = filename.components(separatedBy: "_to_")
-        if components.count == 2 {
-            let startPart = components[0].components(separatedBy: "_").last ?? "unknown"
-            let endPart = components[1].replacingOccurrences(of: ".wav", with: "")
-            
+        // Example new filename format: "2024-03-21_14-30-45.wav"
+        print("Processing file: \(filename)")
+        
+        let components = filename.components(separatedBy: "_")
+        if components.count >= 2,
+           let timeComponent = components.last?.replacingOccurrences(of: ".wav", with: "") {
             // Convert from "HH-mm-ss" to "HH:mm:ss"
-            let formattedStart = startPart.replacingOccurrences(of: "-", with: ":")
-            let formattedEnd = endPart.replacingOccurrences(of: "-", with: ":")
-            
-            return (formattedStart, formattedEnd)
+            let formattedTime = timeComponent.replacingOccurrences(of: "-", with: ":")
+            print("Extracted time: \(formattedTime)")
+            return (formattedTime, "") // We only track start time now
         }
-        return ("unknown", "unknown")
+        
+        print("Failed to parse time from filename: \(filename)")
+        return ("unknown", "")
     }
     
     private func cleanupAllAudioStorage() async {
