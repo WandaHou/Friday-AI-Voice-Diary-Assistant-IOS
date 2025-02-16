@@ -38,6 +38,6 @@
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
     <key>OPENAI_API_KEY</key>
-    <string>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</string>
+    <string>##Add your own API key here.##</string>
 </dict>
 </plist>
