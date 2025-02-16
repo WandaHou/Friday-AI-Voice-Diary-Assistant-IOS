@@ -289,11 +289,11 @@ class CacheViewModel: ObservableObject {
 //        print("Could not find documents directory")
 //        return
 //    }
-//
+//    
 //    let content = "Hello world."
 //    let diaryPath = documentsPath.appendingPathComponent("Diaries")
 //    let testFile = diaryPath.appendingPathComponent("test.txt")
-//
+//    
 //    do {
 //        try content.write(to: testFile, atomically: true, encoding: .utf8)
 //        print("Created test text file at: \(testFile.path)")

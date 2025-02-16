@@ -3,13 +3,15 @@ import AVFoundation
 import UIKit
 
 /// An actor that handles voice detection and recording functionality
-actor AudioRecorder {
+actor AudioRecorder: AudioRecorderProtocol {
     // MARK: - Singleton
     static let shared = AudioRecorder()
     
     // MARK: - Properties
     private let audioEngine = AVAudioEngine()
-    private var audioSession: AudioSession?
+    private let audioSession: AudioSessionProtocol
+    private let transcriptionService: WhisperServiceProtocol
+    private let fileManager: FileManagerProtocol
     private var audioRecorder: AVAudioRecorder?
     private var isListening = false
     private var isRecording = false
@@ -20,6 +22,7 @@ actor AudioRecorder {
     
     // MARK: - Recording Properties
     private var recordingStartTime: Date?
+    private var recordingFilename: String?
     
     private var currentLevel: Float = -160.0
     
@@ -32,7 +35,15 @@ actor AudioRecorder {
     }
     
     // MARK: - Initialization
-    private init() {}
+    init(
+        audioSession: AudioSessionProtocol = AudioSession.shared,
+        transcriptionService: WhisperServiceProtocol = WhisperService.shared,
+        fileManager: FileManagerProtocol = FileManager.default
+    ) {
+        self.audioSession = audioSession
+        self.transcriptionService = transcriptionService
+        self.fileManager = fileManager
+    }
     
     // MARK: - Public Interface
     /// Starts voice detection with the audio engine
@@ -40,8 +51,7 @@ actor AudioRecorder {
         guard !isListening else { return }
         
         // 1. Setup audio session
-        audioSession = AudioSession.shared
-        try await audioSession?.activate()
+        try await audioSession.activate()
         
         // 2. Configure audio engine
         let inputNode = audioEngine.inputNode
@@ -68,8 +78,8 @@ actor AudioRecorder {
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         
-        // 2. Cleanup audio session
-        audioSession = nil
+        // 2. Deactivate audio session
+        audioSession.deactivate()
         
         isListening = false
         
@@ -123,7 +133,6 @@ actor AudioRecorder {
         guard !isRecording else { return }
         
         // Setup recording format
-        // let format = audioEngine.inputNode.outputFormat(forBus: 0)
         let recordingURL = try createNewRecordingURL()
         
         // Update settings for WAV format
@@ -162,47 +171,32 @@ actor AudioRecorder {
     private func checkSilence() {
         guard let lastVoiceTime = lastVoiceDetectionTime else { return }
         
-        if Date().timeIntervalSince(lastVoiceTime) >= silenceThreshold {
-            Task {
+        // Only create a new task if one isn't already running
+        if silenceCheckTask == nil && Date().timeIntervalSince(lastVoiceTime) >= silenceThreshold {
+            silenceCheckTask = Task {
                 await stopRecording()
+                silenceCheckTask = nil
             }
         }
     }
     
     private func stopRecording() async {
-        guard let recorder = audioRecorder,
-              let startTime = recordingStartTime else { return }
+        guard let recorder = audioRecorder else { return }
         
         recorder.stop()
         
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = formatter.string(from: Date())
-        
-        let oldURL = recorder.url
-        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent("\(timestamp).wav")
-        
         do {
-            try FileManager.default.moveItem(at: oldURL, to: newURL)
-            print("AudioRecorder: Saved recording to \(newURL.lastPathComponent)")
-            
-            // Transcribe this single file immediately
-            Task {
-                do {
-                    print("Starting transcription for newly saved recording...")
-                    _ = try await WhisperService.shared.transcribeSingleFile(newURL)
-                } catch {
-                    print("Transcription failed: \(error)")
-                }
-            }
+            // Just transcribe - WhisperService will handle cleanup
+            _ = try await transcriptionService.transcribeSingleFile(recorder.url)
         } catch {
-            print("AudioRecorder: Failed to save recording: \(error)")
+            print("AudioRecorder: Failed to process recording: \(error)")
         }
         
-        // Cleanup
+        // Cleanup recording state
         audioRecorder = nil
         recordingStartTime = nil
         isRecording = false
+        URLCache.shared.removeAllCachedResponses() // clean cache files
     }
     
     // Error handling

@@ -25,45 +25,49 @@ struct ProfileView: View {
     @State private var showingResetAlert = false
     
     var body: some View {
-        NavigationView {
-            List {
-                Section(header: Text("System prompts")) {
-                    ForEach(userNotes) { note in
-                        NavigationLink(destination: NoteEditView(note: binding(for: note), onSave: saveNotes)) {
-                            NoteRowView(note: note)
+        if #available(iOS 16.0, *) {
+            NavigationStack {
+                List {
+                    Section(header: Text("System prompts")) {
+                        ForEach(userNotes) { note in
+                            NavigationLink(destination: NoteEditView(note: binding(for: note), onSave: saveNotes)) {
+                                NoteRowView(note: note)
+                            }
+                        }
+                        .onDelete(perform: deleteNotes)
+                    }
+                }
+                .navigationTitle("Profile")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { showingNewNote = true }) {
+                            Image(systemName: "square.and.pencil")
                         }
                     }
-                    .onDelete(perform: deleteNotes)
-                }
-            }
-            .navigationTitle("Profile")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { showingNewNote = true }) {
-                        Image(systemName: "square.and.pencil")
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: { showingResetAlert = true }) {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { showingResetAlert = true }) {
-                        Image(systemName: "arrow.counterclockwise")
+                .alert("Reset to Defaults", isPresented: $showingResetAlert) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Reset", role: .destructive) {
+                        resetToDefaults()
+                    }
+                } message: {
+                    Text("This will reset all prompts to their default values. This action cannot be undone.")
+                }
+                .sheet(isPresented: $showingNewNote) {
+                    NavigationView {
+                        NoteEditView(note: $userNotes.new, onSave: saveNotes)
                     }
                 }
             }
-            .alert("Reset to Defaults", isPresented: $showingResetAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Reset", role: .destructive) {
-                    resetToDefaults()
-                }
-            } message: {
-                Text("This will reset all prompts to their default values. This action cannot be undone.")
-            }
-            .sheet(isPresented: $showingNewNote) {
-                NavigationView {
-                    NoteEditView(note: $userNotes.new, onSave: saveNotes)
-                }
-            }
+            .onAppear(perform: loadNotes)
+        } else {
+            // Fallback on earlier versions
         }
-        .onAppear(perform: loadNotes)
     }
     
     private func loadNotes() {

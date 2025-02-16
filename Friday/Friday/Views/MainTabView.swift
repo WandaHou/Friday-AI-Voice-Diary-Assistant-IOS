@@ -46,5 +46,4 @@ struct MainTabView: View {
 
 #Preview {
     MainTabView()
-        .environmentObject(FridayState.shared)
 } 

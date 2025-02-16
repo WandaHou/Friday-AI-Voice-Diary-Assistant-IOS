@@ -1,10 +1,13 @@
 import Foundation
+import UIKit
 
-actor DiaryService {
+actor DiaryService: DiaryServiceProtocol {
     static let shared = DiaryService()
+    private let fileManager: FileManagerProtocol
     private let apiKey: String
     
-    private init() {
+    init(fileManager: FileManagerProtocol = FileManager.default) {
+        self.fileManager = fileManager
         guard let key = Bundle.main.infoDictionary?["OPENAI_API_KEY"] as? String else {
             fatalError("OpenAI API key not found")
         }
@@ -105,10 +108,10 @@ actor DiaryService {
         
         let (responseData, response) = try await URLSession.shared.data(for: request)
         
-        // Print response for debugging
-        if let responseString = String(data: responseData, encoding: .utf8) {
-            print("API Response: \(responseString)")
-        }
+//        // Print response for debugging
+//        if let responseString = String(data: responseData, encoding: .utf8) {
+//            print("API Response: \(responseString)")
+//        }
         
         // Check HTTP status code
         if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
@@ -151,7 +154,7 @@ actor DiaryService {
     }
     
     private func saveDiary(_ text: String, date: String) async throws {
-        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+        guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw DiaryError.saveFailed
         }
         

@@ -4,7 +4,7 @@ import UserNotifications
 import UIKit
 
 @MainActor
-class PermissionsService {
+class PermissionsService: PermissionsServiceProtocol {
     static let shared = PermissionsService()
     
     enum PermissionError: Error {
@@ -12,6 +12,8 @@ class PermissionsService {
         case notification
         case speech
     }
+    
+    private init() {}
     
     func requestMicrophonePermission() async -> Bool {
         return await withCheckedContinuation { continuation in
@@ -45,7 +47,6 @@ class PermissionsService {
     }
     
     func requestAllPermissions() async -> Bool {
-        // Request permissions in sequence
         guard await requestNotificationPermission() else {
             print("PermissionsService: Failed to get notification permission")
             return false
@@ -65,7 +66,6 @@ class PermissionsService {
         return true
     }
     
-    // Add check methods for current permission status
     func checkMicrophonePermission() -> Bool {
         return AVAudioSession.sharedInstance().recordPermission == .granted
     }

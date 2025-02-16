@@ -1,18 +1,12 @@
 import SwiftUI
 import UIKit
-import Foundation
-import Lottie
 import Combine
+import Lottie
 
 struct FridayView: View {
-    @EnvironmentObject private var fridayState: FridayState
-    @State private var buttonTitle: String = "Asleep"
-    @State private var isGifPlaying: Bool = false
+    @StateObject private var viewModel = FridayViewModel()
     @State private var showPatMessage: Bool = false
-    @State private var isTranscribing = false
-    @State private var isGeneratingDiary = false
     
-    // MARK: - Main View
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -25,7 +19,7 @@ struct FridayView: View {
                 .padding(.bottom, 70)
             
             // GIF Image Button
-            AnimatedImageView()
+            AnimatedImageView(viewModel: viewModel)
                 .frame(width: 200, height: 200)
                 .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { _ in
@@ -54,90 +48,76 @@ struct FridayView: View {
             
             // Awake/Asleep Button
             Button(action: {
-                fridayState.voiceDetectorActive.toggle()
+                Task {
+                    await viewModel.toggleVoiceDetector()
+                }
             }) {
-                Text(fridayState.voiceDetectorActive ? "Awake" : "Asleep")
+                Text(viewModel.voiceDetectorActive ? "Awake" : "Asleep")
                     .font(.system(size: 18, weight: .bold))
             }
             
             // Add Transcribe Button
             Button(action: {
-                isTranscribing = true
                 Task {
-                    await transcribeRecordings()
-                    isTranscribing = false
+                    try? await viewModel.transcribeRecordings()
                 }
             }) {
                 HStack {
                     Text("Transcribe🎧")
                         .font(.system(size: 18, weight: .bold))
-                    if isTranscribing {
+                    if viewModel.isTranscribing {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
                     }
                 }
             }
-            .disabled(isTranscribing)
+            .disabled(viewModel.isTranscribing)
             
             // Add Generate Diary Button
             Button(action: {
-                isGeneratingDiary = true
                 Task {
-                    await generateDiary()
-                    isGeneratingDiary = false
+                    try? await viewModel.generateDiary()
                 }
             }) {
                 HStack {
                     Text("Generate Diary📝")
                         .font(.system(size: 18, weight: .bold))
-                    if isGeneratingDiary {
+                    if viewModel.isGeneratingDiary {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
                     }
                 }
             }
-            .disabled(isGeneratingDiary)
+            .disabled(viewModel.isGeneratingDiary)
             
             Spacer()
         }
         .padding()
-    }
-    
-    func transcribeRecordings() async {
-        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-        
-        let audioPath = documentsPath.appendingPathComponent("AudioRecords")
-        
-        do {
-            _ = try await WhisperService.shared.transcribeAudioFiles(in: audioPath)
-            print("Transcription completed.")
-        } catch {
-            print("Transcription failed.")
-        }
     }
 }
 
 // MARK: - Animated Image View
 struct AnimatedImageView: View {
     @State private var playbackSpeed: Double = 0.0
-    @EnvironmentObject private var fridayState: FridayState
+    @ObservedObject var viewModel: FridayViewModel
     let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     
-    private let threshold: Float = AudioRecorder.shared.threshold
+    private let threshold: Float
     private let maxDB: Float = -20.0
+    
+    init(viewModel: FridayViewModel, threshold: Float = -25.0) {
+        self.viewModel = viewModel
+        self.threshold = threshold
+    }
     
     var body: some View {
         LottieView(animation: .named("phonograph"),
                   speed: playbackSpeed)
-            .onChange(of: fridayState.voiceDetectorActive) { isActive in
+            .onChange(of: viewModel.voiceDetectorActive) { isActive in
                 if !isActive {
                     playbackSpeed = 0.0
                 }
             }
             .onReceive(timer) { _ in
-                guard fridayState.voiceDetectorActive else {
+                guard viewModel.voiceDetectorActive else {
                     if playbackSpeed != 0.0 {
                         playbackSpeed = 0.0
                     }
@@ -145,7 +125,7 @@ struct AnimatedImageView: View {
                 }
                 
                 Task {
-                    if let level = await AudioRecorder.shared.currentAudioLevel {
+                    if let level = await viewModel.audioService.currentAudioLevel {
                         updateSpeed(for: level)
                     }
                 }
@@ -198,28 +178,4 @@ struct LottieView: UIViewRepresentable {
 // MARK: - Preview
 #Preview {
     FridayView()
-        .environmentObject(FridayState.shared)
-}
-
-func generateDiary() async {
-    guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-        return
-    }
-    
-    let transcriptsPath = documentsPath.appendingPathComponent("Transcripts")
-    let dateFormatter = DateFormatter()
-    dateFormatter.dateFormat = "yyyy-MM-dd"
-    let dateString = dateFormatter.string(from: Date())
-    let transcriptURL = transcriptsPath.appendingPathComponent("\(dateString).txt")
-    
-    // Load saved notes for custom prompt
-    if let data = UserDefaults.standard.data(forKey: "SystemPromptNotes"),
-       let savedNotes = try? JSONDecoder().decode([Note].self, from: data) {
-        do {
-            _ = try await DiaryService.shared.createDiary(from: transcriptURL, using: savedNotes)
-            print("Diary generated successfully with custom prompt")
-        } catch {
-            print("Failed to generate diary: \(error)")
-        }
-    }
 }

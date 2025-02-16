@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		73188F922D251E6C00438B60 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 73188F912D251E6C00438B60 /* Lottie */; };
 		7375442E2D21015100547D96 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7375442D2D21015100547D96 /* UIKit.framework */; };
+		73C01C412D2E1F0E0095E457 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 73C01C402D2E1F0E0095E457 /* Settings.bundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +34,7 @@
 		73A873232D1FD2E800BC1E80 /* Friday.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Friday.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		73A873332D1FD2EB00BC1E80 /* FridayTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FridayTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		73A8733D2D1FD2EB00BC1E80 /* FridayUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FridayUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		73C01C402D2E1F0E0095E457 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -104,6 +106,7 @@
 		73A8731A2D1FD2E700BC1E80 = {
 			isa = PBXGroup;
 			children = (
+				73C01C402D2E1F0E0095E457 /* Settings.bundle */,
 				73A873252D1FD2E800BC1E80 /* Friday */,
 				73A873362D1FD2EB00BC1E80 /* FridayTests */,
 				73A873402D1FD2EB00BC1E80 /* FridayUITests */,
@@ -246,6 +249,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				73C01C412D2E1F0E0095E457 /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

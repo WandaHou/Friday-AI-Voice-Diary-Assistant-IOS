@@ -1,11 +1,13 @@
 import Foundation
+import UIKit
 
-actor WhisperService {
+actor WhisperService: WhisperServiceProtocol {
     static let shared = WhisperService()
+    private let fileManager: FileManagerProtocol
     private let apiKey: String
-    private let fileManager = FileManager.default
     
-    private init() {
+    init(fileManager: FileManagerProtocol = FileManager.default) {
+        self.fileManager = fileManager
         guard let key = Bundle.main.infoDictionary?["OPENAI_API_KEY"] as? String else {
             fatalError("OpenAI API key not found")
         }
@@ -13,26 +15,30 @@ actor WhisperService {
     }
     
     func transcribeAudioFiles(in directory: URL) async throws -> String {
-        let contents = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "wav" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        print("WhisperService: Scanning directory: \(directory.path)")
         
-        guard !contents.isEmpty else { return "No audio files to transcribe" }
+        let contents = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: []
+        )
+        .filter { $0.pathExtension == "wav" }
+        .sorted { $0.lastPathComponent < $1.lastPathComponent }
         
-        var fullTranscript = ""
-        var lastFileDate: String?
+        print("WhisperService: Found \(contents.count) WAV files")
         
-        for audioFile in contents {
-            let transcript = try await transcribeAudio(file: audioFile)
-            let timeRange = extractTimeRange(from: audioFile.lastPathComponent)
-            fullTranscript += "At \(timeRange.start):\n\(transcript)\n\n"
-            lastFileDate = extractDate(from: audioFile.lastPathComponent)
-            
-            try? fileManager.removeItem(at: audioFile)
+        guard !contents.isEmpty else {
+            print("WhisperService: No audio files found to transcribe")
+            return "No audio files to transcribe"
         }
         
-        if !fullTranscript.isEmpty {
-            try await saveTranscript(fullTranscript, date: lastFileDate ?? "unknown_date")
+        var fullTranscript = ""
+        
+        for audioFile in contents {
+            print("WhisperService: Processing file: \(audioFile.lastPathComponent)")
+            let transcript = try await transcribeSingleFile(audioFile)
+            fullTranscript += "\(transcript)\n\n"
+            print("WhisperService: Completed processing: \(audioFile.lastPathComponent)")
         }
         
         return fullTranscript
@@ -40,27 +46,12 @@ actor WhisperService {
     
     func transcribeSingleFile(_ file: URL) async throws -> String {
         let transcript = try await transcribeAudio(file: file)
-        let timeRange = extractTimeRange(from: file.lastPathComponent)
-        let formattedTranscript = "At \(timeRange.start):\n\(transcript)\n\n"
+        try await saveTranscript(transcript, filename: file.lastPathComponent)
         
-        try? fileManager.removeItem(at: file)
+        // Remove the audio file and clear temporary files
+        try fileManager.removeItem(at: file)
         
-        try await saveTranscript(formattedTranscript, date: extractDate(from: file.lastPathComponent))
-        
-        return formattedTranscript
-    }
-    
-    private func deleteAndVerify(file: URL) -> Bool {
-        do {
-            try fileManager.removeItem(at: file)
-            if !fileManager.fileExists(atPath: file.path) {
-                print("Successfully deleted: \(file.lastPathComponent)")
-                return true
-            }
-        } catch {
-            print("Error deleting file: \(error)")
-        }
-        return false
+        return transcript
     }
     
     private func transcribeAudio(file: URL) async throws -> String {
@@ -95,78 +86,50 @@ actor WhisperService {
     }
     
     private func extractDate(from filename: String) -> String {
-        // Example filename format: "2024-03-21_14-30-45_to_14-35-20.wav"
-        // We only want "2024-03-21"
+        // Example filename format: "2024-03-21_14-30-45_recording.wav"
         let components = filename.components(separatedBy: "_")
-        if components.count >= 1 {
-            // Take first component (year-month-day) and join them
-            return components[0]
+        if components.count >= 2 {
+            return components[0]  // "2024-03-21"
         }
         return "unknown_date"
     }
     
-    private func saveTranscript(_ text: String, date: String) async throws {
-        guard let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+    private func extractTime(from filename: String) -> String {
+        // Example filename format: "2024-03-21_14-30-45_recording.wav"
+        let components = filename.components(separatedBy: "_")
+        if components.count >= 2 {
+            // Convert from "14-30-45" to "14:30:45"
+            return components[1].replacingOccurrences(of: "-", with: ":")
+        }
+        return "unknown_time"
+    }
+    
+    private func saveTranscript(_ text: String, filename: String) async throws {
+        guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             throw TranscriptionError.saveFailed
         }
         
         let transcriptsPath = documentsPath.appendingPathComponent("Transcripts")
-        let transcriptURL = transcriptsPath.appendingPathComponent("\(date).txt")
+        let transcriptURL = transcriptsPath.appendingPathComponent("\(extractDate(from: filename)).txt")
+        print("Saving transcript to: \(transcriptURL.path)")
         
-        // If file exists, append to it instead of creating new
-        if FileManager.default.fileExists(atPath: transcriptURL.path) {
+        // Format the new transcript with time
+        let time = extractTime(from: filename)
+        let formattedTranscript = """
+        At \(time):
+        \(text)
+        
+        """
+        
+        if fileManager.fileExists(atPath: transcriptURL.path) {
             let existingContent = try String(contentsOf: transcriptURL, encoding: .utf8)
-            let updatedContent = existingContent + "\n\n" + text
+            let updatedContent = existingContent + "\n" + formattedTranscript
             try updatedContent.write(to: transcriptURL, atomically: true, encoding: .utf8)
         } else {
-            try text.write(to: transcriptURL, atomically: true, encoding: .utf8)
+            try formattedTranscript.write(to: transcriptURL, atomically: true, encoding: .utf8)
         }
     }
     
-    private func extractTimeRange(from filename: String) -> (start: String, end: String) {
-        // Example new filename format: "2024-03-21_14-30-45.wav"
-        print("Processing file: \(filename)")
-        
-        let components = filename.components(separatedBy: "_")
-        if components.count >= 2,
-           let timeComponent = components.last?.replacingOccurrences(of: ".wav", with: "") {
-            // Convert from "HH-mm-ss" to "HH:mm:ss"
-            let formattedTime = timeComponent.replacingOccurrences(of: "-", with: ":")
-            print("Extracted time: \(formattedTime)")
-            return (formattedTime, "") // We only track start time now
-        }
-        
-        print("Failed to parse time from filename: \(filename)")
-        return ("unknown", "")
-    }
-    
-    private func cleanupAllAudioStorage() async {
-        let fileManager = FileManager.default
-        let locations = [
-            fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first,
-            fileManager.temporaryDirectory
-        ].compactMap { $0 }
-        
-        for location in locations {
-            do {
-                let contents = try fileManager.contentsOfDirectory(
-                    at: location,
-                    includingPropertiesForKeys: nil,
-                    options: [.skipsHiddenFiles]
-                )
-                
-                for file in contents where file.pathExtension == "wav" {
-                    try? fileManager.removeItem(at: file)
-                    print("Cleaned up cached file at: \(file.path)")
-                }
-            } catch {
-                print("Error cleaning cache directory \(location.path): \(error)")
-            }
-        }
-        
-        // Clear URLSession cache
-        URLCache.shared.removeAllCachedResponses()
-    }
 }
 
 // MARK: - Models
