@@ -1,6 +1,6 @@
-# Friday - Your AI Voice Diary Assistant 🎧
+# AI Voice Diary Assistant 🎧
 
-Friday is an innovative iOS application that transforms your spoken words into beautifully crafted diary entries. Like a faithful companion, Friday listens to your voice and helps you maintain a digital diary without the need for manual writing.
+IOS application that transforms your spoken words into beautifully crafted diary entries. Like a faithful companion, it listens to your voice and helps you maintain a digital diary without the need for manual writing.
 
 ## Features 🌟
 
@@ -47,7 +47,7 @@ Friday is an innovative iOS application that transforms your spoken words into b
 
 ## Privacy 🔒
 
-Friday is designed with privacy in mind:
+Designed with privacy in mind:
 - All audio recordings are processed locally before transcription
 - Transcriptions are stored securely on your device
 - OpenAI API interactions follow best security practices
@@ -77,5 +77,3 @@ Visit the Profile tab to customize your diary generation guidelines:
 - Performance optimizations
 
 ---
-
-Friday: Your voice, your story, beautifully preserved. 📝
